@@ -1,15 +1,22 @@
 import constants.Constants;
+import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
-import io.restassured.module.jsv.JsonSchemaValidator;
+import io.restassured.http.Method;
+import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import org.json.simple.JSONObject;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.Test;
 
+import java.net.URI;
 import java.util.*;
 
 import static io.restassured.RestAssured.given;
 import static io.restassured.module.jsv.JsonSchemaValidator.matchesJsonSchemaInClasspath;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.testng.Assert.assertEquals;
 
 public class TrelloTest extends BaseTest{
@@ -37,9 +44,10 @@ public class TrelloTest extends BaseTest{
                         when()
                         .get(Constants.getListsInBoard).
                         then()
-                        .extract().jsonPath().getList("$");
+                        .body("[0].name",equalTo(expectedListNames.get(0)))
+                        .extract().response().jsonPath().getList("$");
 
-        assertEquals(getListsFromMap(lists,"name") , expectedListNames);
+        //assertEquals(getListsFromMap(lists,"name") , expectedListNames);
         listIds = getListsFromMap(lists,"id");
 
         System.out.println(listIds.get(0));
@@ -51,16 +59,17 @@ public class TrelloTest extends BaseTest{
     {
         String listName = "NewListFromAutomation";
         given()
-                .body(jsonObject.toJSONString())
+                .body(queryParam.toJSONString())
                 .queryParam("name",listName)
                 .queryParam("idBoard",boardId)
                 .contentType(ContentType.JSON)
                 .log().all().
-
                 when()
                 .post(Constants.getLists).
                 then()
-                .statusCode(200);
+                .statusCode(200)
+                .body("name",equalTo(listName))
+                .body("idBoard",equalTo(boardId));
     }
 
     @Test(priority=3)
@@ -75,22 +84,27 @@ public class TrelloTest extends BaseTest{
         jsonBody.put("token", tokenValue);
 
         Response response =
-                (Response) given()
+                given()
                         .contentType(ContentType.JSON)
                         .body(jsonBody.toJSONString())
                         .log().all().
                         when()
                         .post(Constants.createCard).
                         then()
-                        .contentType(ContentType.JSON)
-                        .body(matchesJsonSchemaInClasspath("createCardSchema.json"));
+                        .statusCode(200)
+                        .body("name", equalTo(cardName))
+                        .body("idBoard",equalTo(boardId))
+                        .body("idList",equalTo(listIds.get(0)))
+                        .body(matchesJsonSchemaInClasspath("createCardSchema.json"))
+                        .extract()
+                        .response();
 
-        assertEquals(response.statusCode(),200);
+        //assertEquals(response.statusCode(),200);
         Map<String,?> responseMap = response.getBody().jsonPath().getMap("$");
 
-        assertEquals(responseMap.get("name"), cardName);
-        assertEquals(responseMap.get("idBoard"),boardId);
-        assertEquals(responseMap.get("idList"),listIds.get(0));
+        // assertEquals(responseMap.get("name"), cardName);
+        // assertEquals(responseMap.get("idBoard"),boardId);
+        // assertEquals(responseMap.get("idList"),listIds.get(0));
 
         cardId = (String) responseMap.get("id");
 
@@ -115,10 +129,16 @@ public class TrelloTest extends BaseTest{
                         .pathParam("cardId", cardId)
                         .log().all().
                         when()
-                        .put(Constants.updateCard);
+                        .put(Constants.updateCard).
+                        then()
+                        .statusCode(200)
+                        .body("name", equalTo(updateCardName))
+                        .body("badges.location", equalTo(false))
+                        .extract()
+                        .response();
 
-        assertEquals(response.statusCode(),200);
-        assertEquals(response.jsonPath().getMap("$").get("name"), updateCardName);
+        // assertEquals(response.statusCode(),200);
+        // assertEquals(response.jsonPath().getMap("$").get("name"), updateCardName);
 
     }
 
@@ -126,7 +146,7 @@ public class TrelloTest extends BaseTest{
     public void ValidateCardDeleted()
     {
         RequestSpecification requestSpec =  given()
-                .body(jsonObject.toJSONString())
+                .body(queryParam.toJSONString())
                 .pathParam("cardId", cardId)
                 .contentType(ContentType.JSON);
 

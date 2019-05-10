@@ -6,23 +6,23 @@ import org.json.simple.JSONObject;
 import org.testng.annotations.*;
 
 import static io.restassured.RestAssured.given;
+import static io.restassured.module.jsv.JsonSchemaValidator.matchesJsonSchemaInClasspath;
 
 public class BaseTest {
 
-    String keyValue = "0697ace29da135af1009cc535346c753";
-    String tokenValue = "7e0b2389afbcf0c9cd08521ee285c1d07edc56da5173b652572920748c0a3970";
+    String keyValue = "";
+    String tokenValue = "89a595d48ea16d2769491b290fdcb094d13cfdf5a0ee4cc0d162e5b88c5a0750";
 
     protected String boardId;
-    public String boardName = "BoardRestAssured";
-    public JSONObject jsonObject = new JSONObject();
-
+    public String boardName = "Board RestAssured";
+    public JSONObject queryParam = new JSONObject();
     @BeforeSuite
     public void setup() {
 
         RestAssured.baseURI = Constants.baseURL;
 
-        jsonObject.put("key", keyValue);
-        jsonObject.put("token", keyValue);
+        queryParam.put("key", keyValue);
+        queryParam.put("token", keyValue);
 
     }
 
@@ -33,20 +33,18 @@ public class BaseTest {
                 given()
                         .queryParam("name", boardName)
                         .contentType(ContentType.JSON)
-                        .body(jsonObject.toJSONString())
+                        .body(queryParam.toJSONString())
                         .log().all().
-
-
                         when()
                         .post(Constants.createBoard);
 
-        response
-                .then()
-           //     .statusCode(200)
+        response.then()
+                .statusCode(200)
                 .contentType(ContentType.JSON)
+               // .body(matchesJsonSchemaInClasspath("createBoard.json"))
                 .extract().body().jsonPath().get("name").equals(boardName);
 
-                boardId = (String) response.then()
+        boardId = (String) response.then()
                 .extract().jsonPath().getMap("$").get("id");
     }
 
@@ -55,7 +53,7 @@ public class BaseTest {
     {
         //Delete board after running the suite
         given()
-                .body(jsonObject.toJSONString())
+                .body(queryParam.toJSONString())
                 .pathParam("id",boardId)
                 .contentType(ContentType.JSON).log().all().
 
@@ -69,4 +67,3 @@ public class BaseTest {
     }
 
 }
-
